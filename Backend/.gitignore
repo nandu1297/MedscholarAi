@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Chroma / vector database
+chroma_db/
+**/chroma_db/
+
+# Medical/document data
+Backend/Data/
+**/*.pdf
+
+# Logs
+*.log
+
+# Node
+node_modules/
+.next/
+out/
+
+# Build files
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
