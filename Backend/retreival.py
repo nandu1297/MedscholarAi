@@ -7,14 +7,16 @@ from fastapi import FastAPI
 import os
 from pydantic import BaseModel
 from systemprompt import systemprompt
-from langchain_core.messages import HumanMessage, AIMessage
 from fastapi.middleware.cors import CORSMiddleware
+from database_methods import save_message ,fetch_history
+from history import router as history_router
 
 
-
-load_dotenv()  # Load environment variables from .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = FastAPI()
+app.include_router(history_router)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,7 +61,7 @@ class Queryrequest(BaseModel):
 
 
 
-history = []
+
 # ============================================================
 # 5. RETRIEVE RELEVANT CHUNKS
 # ============================================================
@@ -67,7 +69,7 @@ history = []
 def ask_rag(req: Queryrequest):
 
     user_query = req.query
-    history.append(HumanMessage(content=user_query))
+    save_message("user",user_query)
     
     retrieved_docs = retriever.invoke(user_query)
 
@@ -76,18 +78,20 @@ def ask_rag(req: Queryrequest):
         contents.append(doc.page_content)
     context = "\n\n".join(contents)
 
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("google_api_key")
     llm = ChatGoogleGenerativeAI(
         model="gemini-3.5-flash",
         temperature=0,
         api_key=api_key,
     )
-
+    history =fetch_history()
     prompt = ChatPromptTemplate.from_messages([
     ("system", systemprompt),  
     MessagesPlaceholder(variable_name="history"),
      ("human", "{question}\n\nContext:\n{context}")
    ])
+    
+    
     
     formatmessage = prompt.format_messages(
         history = history[:-1],
@@ -96,7 +100,7 @@ def ask_rag(req: Queryrequest):
         
     )
     response = llm.invoke(formatmessage)
-    history.append(AIMessage(content=response.text))
+    save_message("assistant",response.text)
     return {
         "answer":response.text
     }
