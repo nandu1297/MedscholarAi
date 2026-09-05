@@ -3,7 +3,9 @@ from langchain_chroma import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate,MessagesPlaceholder
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 import os
 from pydantic import BaseModel
 from systemprompt import systemprompt
@@ -16,6 +18,18 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = FastAPI()
 app.include_router(history_router)
+
+DATA_DIR = os.path.join(os.path.dirname(__file__), "Data")
+app.mount("/documents", StaticFiles(directory=DATA_DIR), name="documents")
+
+
+@app.get("/document-download/{filename}")
+def download_document(filename: str):
+    safe_filename = os.path.basename(filename)
+    file_path = os.path.join(DATA_DIR, safe_filename)
+    if safe_filename != filename or not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Document not found")
+    return FileResponse(file_path, media_type="application/pdf", filename=safe_filename)
 
 
 app.add_middleware(
