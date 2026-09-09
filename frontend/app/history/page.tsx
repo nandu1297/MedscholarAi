@@ -2,12 +2,73 @@
 
 import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
+import { API_URL } from "../lib/api";
+import { getStoredRole } from "../lib/role";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 type MessageItem = {
   role: string;
   content: string;
 };
+
+function renderInlineMarkdown(text: string) {
+  return text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
+    }
+
+    if (part.startsWith("*") && part.endsWith("*")) {
+      return <em key={`${part}-${index}`}>{part.slice(1, -1)}</em>;
+    }
+
+    return <span key={`${part}-${index}`}>{part}</span>;
+  });
+}
+
+function MarkdownResponse({ content }: { content: string }) {
+  return (
+    <div className="space-y-2 text-sm leading-7 text-[var(--ink)]">
+      {content.split("\n").map((line, index) => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) return <div key={`space-${index}`} className="h-2" />;
+
+        const headingMatch = trimmedLine.match(/^#{2,3}\s+(.+)$/);
+        if (headingMatch) {
+          const isSources = /^(sources|references|citations)$/i.test(headingMatch[1]);
+          return (
+            <h3
+              key={index}
+              className={`pt-3 text-base font-bold leading-6 ${isSources ? "border-t border-[var(--line)] text-[var(--accent)]" : "text-[var(--ink)]"}`}
+            >
+              {renderInlineMarkdown(headingMatch[1])}
+            </h3>
+          );
+        }
+
+        const bulletMatch = trimmedLine.match(/^[-*]\s+(.+)$/);
+        if (bulletMatch) {
+          return (
+            <div key={index} className="flex gap-2 pl-2">
+              <span aria-hidden="true">•</span>
+              <span>{renderInlineMarkdown(bulletMatch[1])}</span>
+            </div>
+          );
+        }
+
+        const numberedMatch = trimmedLine.match(/^\d+[.)]\s+(.+)$/);
+        if (numberedMatch) {
+          return (
+            <div key={index} className="flex gap-2 pl-2">
+              <span aria-hidden="true" className="font-semibold">{trimmedLine.match(/^\d+/)?.[0]}.</span>
+              <span>{renderInlineMarkdown(numberedMatch[1])}</span>
+            </div>
+          );
+        }
+
+        return <p key={index}>{renderInlineMarkdown(line)}</p>;
+      })}
+    </div>
+  );
+}
 
 export default function HistoryPage() {
   const [messages, setMessages] = useState<MessageItem[]>([]);
@@ -28,7 +89,7 @@ export default function HistoryPage() {
   useEffect(() => {
     async function loadHistory() {
       try {
-        const response = await fetch(`${API_URL}/history`);
+        const response = await fetch(`${API_URL}/history?user_role=${getStoredRole()}`);
         if (!response.ok) throw new Error("Could not load chat history");
 
         const data = await response.json();
@@ -105,9 +166,13 @@ export default function HistoryPage() {
                     </span>
                     {message.role === "user" ? "Your question" : "MedScholar AI"}
                   </div>
-                  <p className="whitespace-pre-wrap text-sm leading-7 text-[var(--ink)]">
-                    {message.content}
-                  </p>
+                  {message.role === "assistant" ? (
+                    <MarkdownResponse content={message.content} />
+                  ) : (
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-[var(--ink)]">
+                      {message.content}
+                    </p>
+                  )}
                 </article>
               ))}
             </div>

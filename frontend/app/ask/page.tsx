@@ -2,9 +2,75 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import AppShell from "../components/AppShell";
+import { API_URL, askRag, type Citation } from "../lib/api";
+import { getStoredRole } from "../lib/role";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-type ChatMessage = { role: "user" | "assistant"; content: string };
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  citations?: Citation[];
+};
+
+function getEmbeddedCitations(content: string) {
+  const citations: Citation[] = [];
+  const citationPattern = /Source:\s*"([^"]+)"\s*,\s*Pages?\s+([^\r\n]+)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = citationPattern.exec(content)) !== null) {
+    const [, source, pages] = match;
+    pages
+      .split(/,\s*/)
+      .map((page) => page.trim())
+      .filter(Boolean)
+      .forEach((page) => citations.push({ source, page }));
+  }
+
+  return citations;
+}
+
+function getAnswerContent(content: string) {
+  return content.replace(/\n?\*\*References from\*\*[\s\S]*$/i, "").trim();
+}
+
+function renderInlineMarkdown(text: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
+    part.startsWith("**") && part.endsWith("**") ? (
+      <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>
+    ) : (
+      <span key={`${part}-${index}`}>{part}</span>
+    ),
+  );
+}
+
+function MarkdownAnswer({ content }: { content: string }) {
+  return (
+    <div className="space-y-2 whitespace-pre-wrap">
+      {content.split("\n").map((line, index) => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) return <div key={`space-${index}`} className="h-2" />;
+
+        if (trimmedLine.startsWith("### ")) {
+          return (
+            <h3 key={index} className="pt-2 text-base font-bold leading-6">
+              {renderInlineMarkdown(trimmedLine.slice(4))}
+            </h3>
+          );
+        }
+
+        if (trimmedLine.startsWith("- ")) {
+          return (
+            <div key={index} className="flex gap-2 pl-2">
+              <span aria-hidden="true">•</span>
+              <span>{renderInlineMarkdown(trimmedLine.slice(2))}</span>
+            </div>
+          );
+        }
+
+        return <p key={index}>{renderInlineMarkdown(line)}</p>;
+      })}
+    </div>
+  );
+}
 
 const suggestions = [
   "What are the main findings discussed in these papers?",
@@ -15,6 +81,11 @@ const suggestions = [
 
 function Message({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
+  const citations = [
+    ...(message.citations || []),
+    ...getEmbeddedCitations(message.content),
+  ];
+  const answerContent = getAnswerContent(message.content);
   return (
     <div className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
       <div
@@ -28,7 +99,37 @@ function Message({ message }: { message: ChatMessage }) {
         <div
           className={`rounded-2xl px-4 py-3 text-sm leading-7 ${isUser ? "bg-[var(--ink)] text-white" : "border border-[var(--line)] bg-white text-[var(--ink)]"}`}
         >
-          <p className="whitespace-pre-wrap">{message.content}</p>
+          <MarkdownAnswer content={answerContent} />
+          {!isUser && citations.length > 0 && (
+            <div className="mt-4 border-t border-[var(--line)] pt-3">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--accent)]">
+                References
+              </p>
+              <div className="space-y-1">
+                {citations.map((citation, index) => {
+                  const filename = citation.source.split(/[\\/]/).pop() || citation.source;
+                  return (
+                    <div
+                      key={`${citation.source}-${citation.page}-${index}`}
+                      className="text-xs font-bold text-[var(--muted)]"
+                    >
+                      <strong>Source:</strong>{" "}
+                      <a
+                        href={`${API_URL}/documents/${encodeURIComponent(filename)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-[var(--accent)] underline-offset-2 hover:underline"
+                      >
+                        {filename}
+                      </a>{" "}
+                      <strong>Page:</strong>{" "}
+                      <strong>{citation.page}</strong>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -44,7 +145,8 @@ export default function AskPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/history`)
+    const role = getStoredRole();
+    fetch(`${API_URL}/history?user_role=${role}`)
       .then((response) => {
         if (!response.ok) throw new Error("History request failed");
         return response.json() as Promise<{ history: ChatMessage[] }>;
@@ -70,16 +172,14 @@ export default function AskPage() {
     setMessages((current) => [...current, { role: "user", content: text }]);
     setSending(true);
     try {
-      const response = await fetch(`${API_URL}/ask_rag`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: text }),
-      });
-      if (!response.ok) throw new Error("Question request failed");
-      const data = (await response.json()) as { answer: string };
+      const data = await askRag(text, getStoredRole(), "chat");
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: data.answer },
+        {
+          role: "assistant",
+          content: data.answer,
+          citations: data.citations || [],
+        },
       ]);
     } catch {
       setError(

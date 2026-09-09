@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ROLE_STORAGE_KEY, type UserRole } from "./lib/role";
 
 const technologies = [
   "Next.js",
@@ -21,6 +22,7 @@ export default function Home() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<UserRole>("student");
   const [error, setError] = useState("");
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -30,6 +32,7 @@ export default function Home() {
       return;
     }
     sessionStorage.setItem("medscholar_user", username.trim());
+    sessionStorage.setItem(ROLE_STORAGE_KEY, role);
     router.push("/ask");
   }
 
@@ -124,6 +127,18 @@ export default function Home() {
                 className="mt-2 h-12 w-full rounded-xl border border-[var(--line)] bg-[#fafcfa] px-4 text-sm outline-none transition focus:border-[var(--accent)]"
                 placeholder="Enter your password"
               />
+            </label>
+            <label className="mt-5 block text-sm font-semibold text-[var(--ink)]">
+              I am joining as
+              <select
+                value={role}
+                onChange={(event) => setRole(event.target.value as UserRole)}
+                className="mt-2 h-12 w-full rounded-xl border border-[var(--line)] bg-[#fafcfa] px-4 text-sm outline-none transition focus:border-[var(--accent)]"
+              >
+                <option value="student">Student</option>
+                <option value="professor">Professor</option>
+                <option value="researcher">Researcher</option>
+              </select>
             </label>
             {error && (
               <p className="mt-3 text-sm text-[#b24c43]" role="alert">

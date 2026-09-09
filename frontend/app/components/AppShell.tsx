@@ -3,17 +3,44 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useState } from "react";
+import { useEffect } from "react";
+import { getStoredRole, type UserRole } from "../lib/role";
 
-const navItems = [
+const commonNavItems = [
+  { href: "/home", label: "Home", symbol: "⌂" },
   { href: "/ask", label: "Ask", symbol: "↗" },
   { href: "/history", label: "History", symbol: "◷" },
   { href: "/documents", label: "Documents", symbol: "▤" },
   { href: "/about", label: "About", symbol: "ⓘ" },
 ];
+const roleNavItems: Record<UserRole, { href: string; label: string; symbol: string }[]> = {
+  student: [],
+  professor: [
+    { href: "/teaching", label: "Teaching", symbol: "✦" },
+    { href: "/generate-questions", label: "Generate Questions", symbol: "?" },
+  ],
+  researcher: [
+    { href: "/compare", label: "Compare Research", symbol: "⇄" },
+    { href: "/gaps", label: "Research Gaps", symbol: "⌁" },
+  ],
+};
+const allowedPaths: Record<UserRole, string[]> = {
+  student: ["/home", "/ask", "/history", "/documents", "/about"],
+  professor: ["/home", "/ask", "/history", "/documents", "/about", "/teaching", "/generate-questions"],
+  researcher: ["/home", "/ask", "/history", "/documents", "/about", "/compare", "/gaps"],
+};
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [role] = useState<UserRole>(() => getStoredRole());
+
+  useEffect(() => {
+    const storedRole = getStoredRole();
+    if (!allowedPaths[storedRole].includes(pathname)) window.location.replace("/ask");
+  }, [pathname]);
+
+  const navItems = [...commonNavItems, ...roleNavItems[role]];
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--ink)]">
