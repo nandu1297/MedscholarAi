@@ -10,9 +10,9 @@ router = APIRouter()
 
 
 @router.get("/history")
-def get_history():
+def get_history(user_role: str = "student"):
 
-    history = get_history_for_api()
+    history = get_history_for_api(user_role)
 
     return {
         "history": history

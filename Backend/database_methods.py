@@ -16,10 +16,11 @@ from mongodb_conn import chat_collection
 # SAVE MESSAGE
 # --------------------------------------------------
 
-def save_message(role, content):
+def save_message(role, content,user_role):
 
     chat_collection.insert_one({
-        "chat_id": "default",
+        "user_role": user_role,
+        "chat_role": "default",
         "role": role,
         "content": content,
         "created_at": datetime.utcnow()
@@ -30,10 +31,13 @@ def save_message(role, content):
 # FETCH HISTORY FOR LLM
 # --------------------------------------------------
 
-def fetch_history():
+def fetch_history(user_role):
 
     messages = chat_collection.find(
-        {"chat_id": "default"}
+        {
+            
+            "user_role": user_role
+        }
     ).sort("created_at", 1)
 
     history = []
@@ -63,10 +67,12 @@ def fetch_history():
 # FETCH HISTORY FOR FRONTEND
 # --------------------------------------------------
 
-def get_history_for_api():
+def get_history_for_api(user_role):
 
     messages = chat_collection.find(
-        {"chat_id": "default"}
+        {
+            "user_role": user_role
+        }
     ).sort("created_at", 1)
 
     history = []
@@ -80,7 +86,6 @@ def get_history_for_api():
 
     return history
 
-
 # --------------------------------------------------
 # CLEAR HISTORY
 # --------------------------------------------------
@@ -88,5 +93,5 @@ def get_history_for_api():
 def clear_history():
 
     chat_collection.delete_many({
-        "chat_id": "default"
+        "chat_role": "default"
     })

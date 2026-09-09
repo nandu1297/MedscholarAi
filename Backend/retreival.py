@@ -8,13 +8,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import os
 from pydantic import BaseModel
-from systemprompt import systemprompt
+from systemprompt import systemprompt ,teaching_prompt,question_generation_prompt ,comparison_prompt ,research_gap_prompt
 from fastapi.middleware.cors import CORSMiddleware
 from database_methods import save_message ,fetch_history
 from history import router as history_router
 
 
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv()
 
 app = FastAPI()
 app.include_router(history_router)
@@ -54,7 +54,7 @@ embeddings = HuggingFaceEmbeddings(
 # ============================================================
 
 vectorstore = Chroma(
-    persist_directory="chroma_db",
+    persist_directory=os.path.join(os.path.dirname(__file__), "chroma_db"),
     embedding_function=embeddings
 )
 
@@ -71,9 +71,31 @@ retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k
 # ============================================================
 class Queryrequest(BaseModel):
     query: str
+    user_role: str = "student"
+    feature: str = "chat"
 
 
 
+def get_prompt(user_role, feature):
+    if user_role == "student":
+        if feature == "chat":
+            return systemprompt 
+    elif user_role == "professor":
+        if feature == "chat":
+            return systemprompt
+        elif feature == "teaching":
+            return teaching_prompt
+        elif feature == "generate_questions":
+            return question_generation_prompt
+    elif user_role == "researcher":
+        if feature == "chat":
+            return systemprompt
+  
+        elif feature == "compare":
+            return comparison_prompt
+        elif feature == "gaps":
+            return research_gap_prompt
+    return None
 
 
 # ============================================================
@@ -81,42 +103,52 @@ class Queryrequest(BaseModel):
 # ============================================================
 @app.post("/ask_rag")
 def ask_rag(req: Queryrequest):
-
+    
+    user_role =req.user_role
+    features = req.feature
     user_query = req.query
-    save_message("user",user_query)
+    save_message("user", user_query,user_role)
     
     retrieved_docs = retriever.invoke(user_query)
 
+    # Collect both content and metadata for citations
     contents = []
+    citations = []
     for doc in retrieved_docs:
         contents.append(doc.page_content)
+        citations.append({
+            "source": doc.metadata.get("source", "Unknown"),
+            "page": doc.metadata.get("page", "N/A")
+        })
+
     context = "\n\n".join(contents)
 
-    api_key = os.getenv("google_api_key")
+    api_key = os.getenv("GOOGLE_API_KEY")
     llm = ChatGoogleGenerativeAI(
         model="gemini-3.5-flash",
         temperature=0,
         api_key=api_key,
     )
-    history =fetch_history()
+    history = fetch_history(user_role)
     prompt = ChatPromptTemplate.from_messages([
-    ("system", systemprompt),  
-    MessagesPlaceholder(variable_name="history"),
-     ("human", "{question}\n\nContext:\n{context}")
-   ])
-    
-    
+        ("system", get_prompt(user_role, features)),  
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{question}\n\nContext:\n{context}")
+    ])
     
     formatmessage = prompt.format_messages(
-        history = history[:-1],
-        context =context,
-        question = user_query,
-        
+        history=history,
+        context=context,
+        question=user_query,
     )
     response = llm.invoke(formatmessage)
-    save_message("assistant",response.text)
+
+    save_message("assistant", response.text, user_role)
+
     return {
-        "answer":response.text
+        "answer": response.text,
+        "citations": citations
     }
+
 
 
