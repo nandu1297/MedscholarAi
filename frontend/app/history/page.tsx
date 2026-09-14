@@ -10,8 +10,13 @@ type MessageItem = {
   content: string;
 };
 
+function sanitizeMarkdownForDisplay(value: string) {
+  return value.replace(/\\(?=(?:#{1,6}\s|[-*+]\s|\*\*|__|\*|_))/g, "");
+}
+
 function renderInlineMarkdown(text: string) {
-  return text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, index) => {
+  const safeText = sanitizeMarkdownForDisplay(text);
+  return safeText.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, index) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
     }
@@ -28,18 +33,20 @@ function MarkdownResponse({ content }: { content: string }) {
   return (
     <div className="space-y-2 text-sm leading-7 text-[var(--ink)]">
       {content.split("\n").map((line, index) => {
-        const trimmedLine = line.trim();
+        const safeLine = sanitizeMarkdownForDisplay(line);
+        const trimmedLine = safeLine.trim();
         if (!trimmedLine) return <div key={`space-${index}`} className="h-2" />;
 
-        const headingMatch = trimmedLine.match(/^#{2,3}\s+(.+)$/);
+        const headingMatch = safeLine.match(/^\s*(#{1,6})\s+(.*)$/);
         if (headingMatch) {
-          const isSources = /^(sources|references|citations)$/i.test(headingMatch[1]);
+          const headingText = headingMatch[2].trim();
+          const isSources = /^(sources|references|citations)$/i.test(headingText);
           return (
             <h3
               key={index}
               className={`pt-3 text-base font-bold leading-6 ${isSources ? "border-t border-[var(--line)] text-[var(--accent)]" : "text-[var(--ink)]"}`}
             >
-              {renderInlineMarkdown(headingMatch[1])}
+              {renderInlineMarkdown(headingText)}
             </h3>
           );
         }

@@ -32,8 +32,13 @@ function getAnswerContent(content: string) {
   return content.replace(/\n?\*\*References from\*\*[\s\S]*$/i, "").trim();
 }
 
+function sanitizeMarkdownForDisplay(value: string) {
+  return value.replace(/\\(?=(?:#{1,6}\s|[-*+]\s|\*\*|__|\*|_))/g, "");
+}
+
 function renderInlineMarkdown(text: string) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
+  const safeText = sanitizeMarkdownForDisplay(text);
+  return safeText.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
     part.startsWith("**") && part.endsWith("**") ? (
       <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>
     ) : (
@@ -46,13 +51,15 @@ function MarkdownAnswer({ content }: { content: string }) {
   return (
     <div className="space-y-2 whitespace-pre-wrap">
       {content.split("\n").map((line, index) => {
-        const trimmedLine = line.trim();
+        const safeLine = sanitizeMarkdownForDisplay(line);
+        const trimmedLine = safeLine.trim();
         if (!trimmedLine) return <div key={`space-${index}`} className="h-2" />;
 
-        if (trimmedLine.startsWith("### ")) {
+        const headingMatch = safeLine.match(/^\s*(#{1,6})\s+(.*)$/);
+        if (headingMatch) {
           return (
             <h3 key={index} className="pt-2 text-base font-bold leading-6">
-              {renderInlineMarkdown(trimmedLine.slice(4))}
+              {renderInlineMarkdown(headingMatch[2].trim())}
             </h3>
           );
         }

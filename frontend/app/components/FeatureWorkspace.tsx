@@ -32,23 +32,30 @@ const featureCopy: Record<Exclude<Feature, "chat">, { title: string; eyebrow: st
   },
 };
 
+function sanitizeMarkdownForDisplay(value: string) {
+  return value.replace(/\\(?=(?:#{1,6}\s|[-*+]\s|\*\*|__|\*|_))/g, "");
+}
+
 function renderMarkdown(content: string) {
   return content.split("\n").map((line, index) => {
-    const trimmedLine = line.trim();
+    const safeLine = sanitizeMarkdownForDisplay(line);
+    const trimmedLine = safeLine.trim();
     if (!trimmedLine) return <div key={`space-${index}`} className="h-2" />;
-    if (trimmedLine.startsWith("### ") || trimmedLine.startsWith("## ")) {
-      const heading = trimmedLine.replace(/^###?\s+/, "");
-      return <h3 key={index} className="pt-3 text-lg font-bold">{heading}</h3>;
+
+    const headingMatch = safeLine.match(/^\s*(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      return <h3 key={index} className="pt-3 text-lg font-bold">{renderInline(headingMatch[2].trim())}</h3>;
     }
     if (trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ")) {
       return <li key={index} className="ml-5 list-disc">{renderInline(trimmedLine.slice(2))}</li>;
     }
-    return <p key={index}>{renderInline(line)}</p>;
+    return <p key={index}>{renderInline(safeLine)}</p>;
   });
 }
 
 function renderInline(text: string) {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
+  const safeText = sanitizeMarkdownForDisplay(text);
+  return safeText.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
     part.startsWith("**") && part.endsWith("**") ? (
       <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>
     ) : (
