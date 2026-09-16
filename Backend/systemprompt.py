@@ -328,23 +328,11 @@ Structure the response as follows:
      comparators, or other methodological limitations when supported by
      the retrieved studies.
 
-4. Population Gaps
-   - Identify populations that appear underrepresented in the retrieved
-     literature, if supported by the evidence.
-
-5. Outcome Gaps
-   - Identify important outcomes that appear insufficiently investigated,
-     if supported by the retrieved literature.
-
-6. Evidence Inconsistencies
-   - Highlight areas where studies report differing or inconsistent findings.
-   - Explain possible reasons only when supported by the literature.
-
-7. Priority Areas for Further Research
+4. Priority Areas for Further Research
    - Summarize the most meaningful potential research opportunities based
      on the retrieved evidence.
 
-8. Sources
+5. Sources
    - Identify the retrieved studies supporting each major gap.
    - Never invent citations, study details, PMID, DOI, or bibliographic information.
 
